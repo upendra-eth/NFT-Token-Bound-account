@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "./contracts/token/ERC721/IERC721.sol";
+import "./contracts/token/ERC1155/IERC1155.sol";
 import "./contracts/interfaces/IERC1271.sol";
 import "./contracts/utils/cryptography/SignatureChecker.sol";
 
@@ -39,6 +40,25 @@ contract Account is IERC165, IERC1271, IAccount, MinimalReceiver {
      */
     event LockUpdated(uint256 timestamp);
 
+    // Event emitted when an NFT is transferred
+    event NFTTransferred(address from, address to, uint256 tokenId);
+
+    // Event emitted when ERC1155 tokens are transferred
+    event BatchErc1155TokensTransferred(
+        address  from,
+        address  to,
+        uint256[] tokenIds,
+        uint256[] amounts
+    );
+
+    // Event emitted when an ERC1155 token is transferred
+    event TokenTransferred(
+        address from,
+        address to,
+        uint256 tokenId,
+        uint256 amount
+    );
+
     /**
      * @dev Emitted whenever the executor for a account is updated
      */
@@ -61,12 +81,9 @@ contract Account is IERC165, IERC1271, IAccount, MinimalReceiver {
     /**
      * @dev If account is unlocked and an executor is set, pass call to executor
      */
-    fallback(bytes calldata data)
-        external
-        payable
-        onlyUnlocked
-        returns (bytes memory result)
-    {
+    fallback(
+        bytes calldata data
+    ) external payable onlyUnlocked returns (bytes memory result) {
         address _owner = owner();
         address _executor = executor[_owner];
 
@@ -92,6 +109,93 @@ contract Account is IERC165, IERC1271, IAccount, MinimalReceiver {
         if (msg.sender != _owner) revert NotAuthorized();
 
         return _call(to, value, data);
+    }
+
+    // Transfer an NFT from this contract to another address
+    function transferERC721Tokens(
+        address tokenCollection,
+        address to,
+        uint256 tokenId
+    ) external {
+        // Get the instance of the ERC721 contract
+        IERC721 nftContract = IERC721(tokenCollection);
+
+        // Check if the sender is the current owner of the NFT
+        require(
+            nftContract.ownerOf(tokenId) == address(this),
+            "NFTHandler: Sender is not the owner"
+        );
+
+        // Transfer the NFT to the specified address
+        nftContract.transferFrom(address(this), to, tokenId);
+
+        // Emit the NFTTransferred event
+        emit NFTTransferred(address(this), to, tokenId);
+    }
+
+    // Transfer ERC1155 tokens from this contract to another address
+    function transferERC1155Tokens(
+        address tokenCollection,
+        address to,
+        uint256 tokenId,
+        uint256 amount
+    ) external {
+        // Get the instance of the ERC1155 contract
+        IERC1155 erc1155Contract = IERC1155(tokenCollection);
+
+        // Check if the sender has enough tokens to transfer
+        require(
+            erc1155Contract.balanceOf(address(this), tokenId) >= amount,
+            "ERC1155Handler: Insufficient balance"
+        );
+
+        // Transfer the tokens to the specified address
+        erc1155Contract.safeTransferFrom(
+            address(this),
+            to,
+            tokenId,
+            amount,
+            ""
+        );
+
+        // Emit the TokenTransferred event
+        emit TokenTransferred(address(this), to, tokenId, amount);
+    }
+
+    // Transfer ERC1155 tokens from this contract to another address
+    function batchTransferERC1155Tokens(
+        address tokenCollection,
+        address to,
+        uint256[] memory tokenIds,
+        uint256[] memory amounts
+    ) external {
+        require(
+            tokenIds.length == amounts.length,
+            "ERC1155Handler: Invalid input length"
+        );
+
+        // Get the instance of the ERC1155 contract
+        IERC1155 erc1155Contract = IERC1155(tokenCollection);
+
+        for (uint256 i = 0; i < tokenIds.length; i++) {
+            require(
+                erc1155Contract.balanceOf(address(this), tokenIds[i]) >=
+                    amounts[i],
+                "ERC1155Handler: Insufficient balance"
+            );
+        }
+
+        // Batch transfer the tokens to the specified address
+        erc1155Contract.safeBatchTransferFrom(
+            address(this),
+            to,
+            tokenIds,
+            amounts,
+            ""
+        );
+
+        // Emit the TokensTransferred event
+        emit BatchErc1155TokensTransferred(address(this),to, tokenIds ,amounts);
     }
 
     /**
@@ -207,11 +311,10 @@ contract Account is IERC165, IERC1271, IAccount, MinimalReceiver {
      * @param hash      Hash of the signed data
      * @param signature Signature to validate
      */
-    function isValidSignature(bytes32 hash, bytes memory signature)
-        external
-        view
-        returns (bytes4 magicValue)
-    {
+    function isValidSignature(
+        bytes32 hash,
+        bytes memory signature
+    ) external view returns (bytes4 magicValue) {
         // If account is locked, disable signing
         if (unlockTimestamp > block.timestamp) return "";
 
@@ -240,13 +343,9 @@ contract Account is IERC165, IERC1271, IAccount, MinimalReceiver {
      * @param interfaceId the interfaceId to check support for
      * @return true if the interface is supported, false otherwise
      */
-    function supportsInterface(bytes4 interfaceId)
-        public
-        view
-        virtual
-        override(IERC165, ERC1155Receiver)
-        returns (bool)
-    {
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view virtual override(IERC165, ERC1155Receiver) returns (bool) {
         // default interface support
         if (
             interfaceId == type(IAccount).interfaceId ||
@@ -301,15 +400,7 @@ contract Account is IERC165, IERC1271, IAccount, MinimalReceiver {
         (, tokenCollection, tokenId) = context();
     }
 
-    function context()
-        internal
-        view
-        returns (
-            uint256,
-            address,
-            uint256
-        )
-    {
+    function context() internal view returns (uint256, address, uint256) {
         bytes memory rawContext = MinimalProxyStore.getContext(address(this));
         if (rawContext.length == 0) return (0, address(0), 0);
 
