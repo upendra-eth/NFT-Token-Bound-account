@@ -16,6 +16,11 @@ contract AccountRegistry is IRegistry {
      */
     address public immutable implementation;
 
+    /**
+     * @dev Emitted whenever new Address Created
+     */
+    event AddressCreated(address indexed newAddress);
+
     constructor(address _implementation) {
         implementation = _implementation;
     }
@@ -43,10 +48,10 @@ contract AccountRegistry is IRegistry {
      * @param tokenId the token ID of the ERC721 token which will control the deployed account
      * @return The address of the deployed account
      */
-    function createAccount(address tokenCollection, uint256 tokenId)
-        external
-        returns (address)
-    {
+    function createAccount(
+        address tokenCollection,
+        uint256 tokenId
+    ) external returns (address) {
         return _createAccount(block.chainid, tokenCollection, tokenId);
     }
 
@@ -75,11 +80,10 @@ contract AccountRegistry is IRegistry {
      * @param tokenId the tokenId of the ERC721 token that controls the account
      * @return The account address
      */
-    function account(address tokenCollection, uint256 tokenId)
-        external
-        view
-        returns (address)
-    {
+    function account(
+        address tokenCollection,
+        uint256 tokenId
+    ) external view returns (address) {
         return _account(block.chainid, tokenCollection, tokenId);
     }
 
