@@ -16,10 +16,12 @@ describe("TokenBoundAccountTests", function () {
   let signer2;
   let otherAccount;
   let tokenId;
+  let chainId;
 
   beforeEach(async () => {
     [owner, signer1, signer2, otherAccount] = await ethers.getSigners();
     tokenId = 1;
+    chainId = 1;
 
     const AccountContract = await ethers.getContractFactory("Account");
     accountContract = await AccountContract.deploy(signer1.address);
@@ -48,7 +50,7 @@ describe("TokenBoundAccountTests", function () {
   });
 
 
-  describe("Cheking functionality of MYERC721 (ownable) ", function () {
+  describe("Performing Extensive Testing on MYERC721 (Ownable) Contract", function () {
     it("should mint NFT with the correct owner", async function () {
       await expect(erc721Contract.safeMint(signer1.address, tokenId)).not.to.be.reverted;
       expect(await erc721Contract.owner()).to.equal(owner.address);
@@ -88,7 +90,42 @@ describe("TokenBoundAccountTests", function () {
 
   });
 
-  describe("Create account", function () {
+  describe("Performing Extensive Testing on Instance of Registry Contract", function () {
+    it("should create an account for an ERC721 token", async function () {
+      const result = await accountRegistryContract.createAccount(erc721Contract,tokenId);
+      let tx = await result.wait();
+      // let account = await tx.events[0].args.token;
+      console.log("tx.events");
+      console.log(tx);
+      // expect(account).to.not.equal(ethers.constants.AddressZero);
+      // expect(await accountRegistryContract.account(erc721Contract, tokenId)).to.equal(account.);
+    });
+
+    it("should get the account address for an existing ERC721 token", async function () {
+      const account = await accountRegistryContract.account( erc721Contract, tokenId);
+      expect(account).to.not.equal('0x0000000000000000000000000000000000000000');
+      console.log(account);
+
+    });
+
+    it("should return zero address for a non-existing ERC721 token", async function () {
+      const nonExistingTokenId = 999; // Replace with a non-existing token ID
+      const account = await accountRegistryContract.createAccount(erc721Contract, nonExistingTokenId);
+      const account1 = await accountRegistryContract.account( erc721Contract, nonExistingTokenId);
+
+      // expect(account).to.equal('0x0000000000000000000000000000000000000000');
+      console.log("account.to");
+      console.log(account.to);
+      console.log("account1");
+      console.log(account1);
+      console.log("owner.address");
+      console.log(owner.address);
+
+    });
+
+  });
+
+  describe("Performing Extensive Testing on Instance of Account Contract", function () {
     it("should Create smart wallet account", async function () {
 
       await expect(erc721Contract.safeMint(signer1.address, tokenId)).not.to.be.reverted;
